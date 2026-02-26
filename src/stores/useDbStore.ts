@@ -8,14 +8,29 @@ export const useDbStore = defineStore('db', {
     activeResult: 0 as number,
     selectedDefaults: null as any | null,
     resultsFullscreen: false,
+    selectedSql: { open: false, sql: '', database: null } as any,
     open: false,
   }),
   actions: {
+    updateResultAt(idx: number, data: any) {
+      if (idx < 0 || idx >= this.openResults.length) return
+      // replace in place
+      this.openResults.splice(idx, 1, data)
+      this.activeResult = idx
+      this.persist()
+    },
+    openSqlEditor(database: string | null, sql: string) {
+      this.selectedSql = { open: true, sql: sql || '', database }
+    },
+    closeSqlEditor() {
+      this.selectedSql = { open: false, sql: '', database: null }
+    },
     addResult(data: any) {
-      // add to front and select
-      this.openResults.unshift(data)
-      this.activeResult = 0
+      // add to end and select the new tab
+      this.openResults.push(data)
+      this.activeResult = Math.max(0, this.openResults.length - 1)
       this.setResultsFullscreen(true)
+      this.persist()
     },
     closeResult(idx: number) {
       if (idx < 0 || idx >= this.openResults.length) return
@@ -36,10 +51,12 @@ export const useDbStore = defineStore('db', {
       if (this.activeResult >= this.openResults.length) {
         this.activeResult = Math.max(0, this.openResults.length - 1)
       }
+      this.persist()
     },
     setActiveResult(i: number) {
       if (i < 0 || i >= this.openResults.length) return
       this.activeResult = i
+      this.persist()
     },
     loadSaved() {
       try {
@@ -49,12 +66,40 @@ export const useDbStore = defineStore('db', {
       } catch (e) {
         this.savedDbs = []
       }
+
+      // load open results and active tab
+      try {
+        const rawOpen = localStorage.getItem('openResults')
+        if (rawOpen) this.openResults = JSON.parse(rawOpen)
+        if (!this.openResults || !Array.isArray(this.openResults))
+          this.openResults = []
+      } catch (e) {
+        this.openResults = []
+      }
+      try {
+        const ar = localStorage.getItem('activeResult')
+        if (ar) this.activeResult = Number(ar) || 0
+      } catch (e) {
+        this.activeResult = 0
+      }
+      try {
+        const rf = localStorage.getItem('resultsFullscreen')
+        if (rf) this.resultsFullscreen = rf === 'true'
+      } catch (e) {
+        this.resultsFullscreen = false
+      }
     },
     persist() {
       try {
         localStorage.setItem('savedDbs', JSON.stringify(this.savedDbs))
+        localStorage.setItem('openResults', JSON.stringify(this.openResults))
+        localStorage.setItem('activeResult', String(this.activeResult))
+        localStorage.setItem(
+          'resultsFullscreen',
+          String(this.resultsFullscreen)
+        )
       } catch (e) {
-        console.warn('Failed persisting savedDbs', e)
+        console.warn('Failed persisting store', e)
       }
     },
     saveConnection(payload: any) {
@@ -80,6 +125,7 @@ export const useDbStore = defineStore('db', {
     },
     setResultsFullscreen(v: boolean) {
       this.resultsFullscreen = v
+      this.persist()
     },
     openModalWithDefaults(d: any) {
       this.selectedDefaults = d

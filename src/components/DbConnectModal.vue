@@ -124,7 +124,17 @@ async function onConnect() {
       error.value = data?.message || JSON.stringify(data)
       emit('error', data)
     } else {
-      emit('connected', data)
+      const payload = {
+        name: form.name || form.host,
+        note: form.note || '',
+        host: form.host,
+        user: form.user,
+        password: form.password,
+        database: form.database,
+        port: form.port,
+        rowLimit: form.rowLimit,
+      }
+      emit('connected', { data, creds: payload })
       close()
     }
   } catch (e: any) {

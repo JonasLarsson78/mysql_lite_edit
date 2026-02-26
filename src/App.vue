@@ -42,7 +42,10 @@
               {{ showRaw ? 'Hide JSON' : 'Show JSON' }}
             </button>
           </div>
-          <ResultsView :dbInfo="currentResult" />
+          <ResultsView
+            :dbInfo="currentResult"
+            @execute-sql="handleExecuteSql"
+          />
           <pre v-if="showRaw" class="debug-json">{{
             JSON.stringify(currentResult, null, 2)
           }}</pre>
@@ -75,6 +78,7 @@
               @click="store.setActiveResult(idx)"
             >
               <span class="tab-fav">🐘</span>
+              <span v-if="r && r._query" class="tab-sql-badge">SQL</span>
               {{ r.database || r.name || 'DB ' + (idx + 1) }}
               <span class="tab-close" @click.stop="store.closeResult(idx)"
                 >✕</span
@@ -84,7 +88,10 @@
         </div>
       </div>
       <div class="fs-body">
-        <ResultsView :dbInfo="openResults[activeResult]" />
+        <ResultsView
+          :dbInfo="openResults[activeResult]"
+          @execute-sql="handleExecuteSql"
+        />
       </div>
     </div>
   </div>
@@ -146,7 +153,19 @@ async function openSaved(db: any) {
     })
     const data = await res.json()
     if (res.ok) {
-      store.addResult(data)
+      const withConn = {
+        ...data,
+        _conn: {
+          host: db.host,
+          user: db.user,
+          password: db.password,
+          database: db.database,
+          port: db.port,
+          name: db.name,
+          note: db.note,
+        },
+      }
+      store.addResult(withConn)
       return
     }
     // fallback to modal on error
@@ -177,8 +196,106 @@ function deleteSaved(id: number) {
   store.deleteSaved(id)
 }
 
-function onConnected(data: any) {
-  store.addResult(data)
+function onConnected(payload: any) {
+  // payload may be { data, creds }
+  if (payload && payload.data) {
+    const merged = { ...payload.data }
+    if (payload.creds) merged._conn = payload.creds
+    store.addResult(merged)
+  } else {
+    store.addResult(payload)
+  }
+}
+
+async function handleExecuteSql(payload: any) {
+  const sql = payload?.sql
+  const database = payload?.database
+  if (!sql) return
+
+  // try find connection creds from openResults or current dbInfo
+  let conn: any = null
+  const found = store.openResults.find((r: any) => r?.database === database)
+  if (found && found._conn) conn = found._conn
+  else if (
+    store.dbInfo &&
+    store.dbInfo.database === database &&
+    store.dbInfo._conn
+  )
+    conn = store.dbInfo._conn
+
+  if (!conn) {
+    alert(
+      'No connection credentials available for this DB. Open the DB via Connect to enable queries.'
+    )
+    return
+  }
+
+  try {
+    const res = await fetch('/api/query', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sql,
+        host: conn.host,
+        user: conn.user,
+        password: conn.password,
+        database: conn.database,
+        port: conn.port,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      alert('Query failed: ' + (data?.message || JSON.stringify(data)))
+      return
+    }
+
+    const rows = data.rows || []
+    const cols =
+      data.columns ||
+      (rows[0] ? Object.keys(rows[0]).map((n: any) => ({ name: n })) : [])
+    const queryResult = {
+      database: conn.database,
+      name: `Query: ${sql.slice(0, 24).replace(/\s+/g, ' ')}${sql.length > 24 ? '…' : ''}`,
+      tables: [
+        {
+          name: 'Query Result',
+          columns: cols.map((c: any) => ({ name: c.name || c })),
+          rows,
+        },
+      ],
+      _query: { sql },
+      _conn: conn,
+    }
+
+    // If the active tab is a Query Result (has _query) for same tab, replace it
+    const activeIdx = store.activeResult
+    const activeTab = store.openResults[activeIdx]
+    let replaced = false
+    if (
+      activeTab &&
+      (activeTab._query || activeTab.name?.startsWith('Query:'))
+    ) {
+      // update in-place
+      store.updateResultAt(activeIdx, queryResult)
+      replaced = true
+    } else {
+      // check for an existing Query Result for same database
+      const existingIdx = store.openResults.findIndex(
+        (r: any) => r && r._query && r.database === conn.database
+      )
+      if (existingIdx !== -1) {
+        store.updateResultAt(existingIdx, queryResult)
+        store.setActiveResult(existingIdx)
+        replaced = true
+      }
+    }
+
+    if (!replaced) store.addResult(queryResult)
+    // close any store-driven sql editor state
+    if (store.selectedSql && store.selectedSql.open) store.closeSqlEditor()
+  } catch (e) {
+    alert('Query error: ' + String(e))
+  }
 }
 
 function onError(e: any) {
@@ -410,6 +527,17 @@ watch(
   opacity: 0.95;
   color: inherit;
 }
+.tab-edit {
+  margin-left: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.tab-edit:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
 .tab-close:hover {
   background: rgba(255, 255, 255, 0.12);
 }
@@ -424,6 +552,18 @@ watch(
   background: linear-gradient(135deg, #ff9a00, #ff6a00);
   font-size: 12px;
   line-height: 1;
+}
+.tab-sql-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.06);
+  color: #ffd8b3;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 12px;
+  margin-right: 8px;
 }
 .btn-close {
   background: transparent;

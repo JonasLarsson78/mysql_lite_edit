@@ -25,6 +25,22 @@
       </div>
 
       <div class="rows" :class="{ compact: compact }">
+        <button
+          :class="[
+            'sql-btn',
+            selectedTable && selectedTable.name === 'Query Result'
+              ? 'sql-btn--active'
+              : '',
+          ]"
+          style="width: 120px"
+          @click="openSqlModal"
+        >
+          <span v-if="selectedTable && selectedTable.name === 'Query Result'"
+            >Edit SQL</span
+          >
+          <span v-else>SQL</span>
+        </button>
+
         <h4>Rows (sample)</h4>
         <div class="rows-table">
           <table>
@@ -55,16 +71,60 @@
         </div>
       </div>
     </section>
+
+    <!-- SQL Editor Modal -->
+    <div
+      v-if="sqlModalOpen"
+      class="sql-modal-overlay"
+      @click.self="closeSqlModal"
+    >
+      <div class="sql-modal">
+        <header class="sql-modal-header">
+          <h3>Run SQL on {{ dbInfo.value?.database || 'current DB' }}</h3>
+        </header>
+        <div class="sql-body">
+          <textarea
+            v-model="sqlText"
+            placeholder="SELECT * FROM users LIMIT 10"
+          />
+        </div>
+        <div class="sql-actions">
+          <button class="btn-muted" @click="closeSqlModal">Cancel</button>
+          <button class="btn-primary" @click="runSql">Run (Ctrl↵)</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, toRef } from 'vue'
+import { useDbStore } from '../stores/useDbStore'
+import { storeToRefs } from 'pinia'
 const props = defineProps<{ dbInfo: any }>()
 const dbInfo = toRef(props, 'dbInfo')
 
 const selected = ref<string | null>(null)
 const compact = ref(false)
+
+// SQL modal state
+const sqlModalOpen = ref(false)
+const sqlText = ref('')
+
+// Listen for store-driven SQL editor requests (e.g., edit query from tab)
+const store = useDbStore()
+const { selectedSql } = storeToRefs(store)
+
+watch(selectedSql, (s) => {
+  if (s && s.open && s.database && s.database === dbInfo.value?.database) {
+    sqlText.value = s.sql || ''
+    sqlModalOpen.value = true
+  }
+})
+
+const emit = defineEmits<{
+  (e: 'execute-sql', payload: { sql: string; database?: string }): void
+}>()
 
 watch(
   () => dbInfo.value,
@@ -79,6 +139,45 @@ watch(
 function select(name: string) {
   selected.value = name
 }
+
+function openSqlModal() {
+  // If editor already has text, keep it (user may be editing).
+  const existing = dbInfo.value?._query?.sql
+  if (!sqlText.value || sqlText.value.trim() === '') {
+    if (selectedTable.value && selectedTable.value.name === 'Query Result') {
+      sqlText.value = existing || ''
+    } else {
+      // prefill a simple SELECT for the selected table
+      const tbl = selectedTable.value?.name || ''
+      sqlText.value = tbl ? `SELECT * FROM ${tbl} LIMIT 100` : ''
+    }
+  }
+  sqlModalOpen.value = true
+}
+
+function closeSqlModal() {
+  sqlModalOpen.value = false
+}
+
+function runSql() {
+  const sql = (sqlText.value || '').trim()
+  if (!sql) return
+  emit('execute-sql', { sql, database: dbInfo.value?.database })
+  closeSqlModal()
+}
+
+// keyboard shortcut: Ctrl/Cmd + Enter to run
+function onKeydown(e: KeyboardEvent) {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+    runSql()
+  }
+}
+
+// attach keydown globally while modal is open
+watch(sqlModalOpen, (v) => {
+  if (v) window.addEventListener('keydown', onKeydown)
+  else window.removeEventListener('keydown', onKeydown)
+})
 
 const selectedTable = computed(() => {
   return (
@@ -180,6 +279,82 @@ function formatCell(val: any) {
   display: flex;
   flex-direction: column;
   min-height: 0;
+}
+
+/* SQL modal styles */
+.sql-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: linear-gradient(rgba(0, 0, 0, 0.45), rgba(0, 0, 0, 0.6));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+.sql-modal {
+  width: 780px;
+  max-width: 96%;
+  background: #0c0f11;
+  color: #e6eef6;
+  padding: 12px;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.6);
+}
+.sql-modal-header h3 {
+  margin: 0 0 8px 0;
+}
+.sql-body textarea {
+  width: 100%;
+  min-height: 160px;
+  background: #071014;
+  color: #cfe8ff;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  padding: 10px;
+  border-radius: 6px;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace;
+  font-size: 13px;
+}
+.sql-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.btn-primary {
+  background: linear-gradient(180deg, #ff8f2f, #ff6a00);
+  color: #111;
+  padding: 8px 12px;
+  border-radius: 6px;
+  border: none;
+}
+.btn-muted {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: #cbdbe8;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.sql-btn {
+  background: rgba(255, 255, 255, 0.03);
+  color: #cfe8ff;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: none;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 80ms ease,
+    background 100ms ease;
+}
+.sql-btn:hover {
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.06);
+}
+.sql-btn--active {
+  background: linear-gradient(180deg, #ff8f2f, #ff6a00);
+  color: #111;
+  box-shadow: 0 8px 20px rgba(255, 106, 0, 0.12);
 }
 .rows-table {
   overflow: auto;
