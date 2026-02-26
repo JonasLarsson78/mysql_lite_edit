@@ -78,28 +78,21 @@
 import { ref, onMounted, watch } from 'vue'
 import DbConnectModal from './components/DbConnectModal.vue'
 import ResultsView from './components/ResultsView.vue'
+import { useDbStore } from './stores/useDbStore'
+import { storeToRefs } from 'pinia'
 
-const open = ref(false)
-const dbInfo = ref<any | null>(null)
-const selectedDefaults = ref<any | null>(null)
-const resultsFullscreen = ref(false)
+const store = useDbStore()
+const { savedDbs, open, dbInfo, selectedDefaults, resultsFullscreen } =
+  storeToRefs(store)
 const showRaw = ref(false)
-
-const savedDbs = ref<any[]>([])
 
 // load saved connections from localStorage
 onMounted(() => {
-  try {
-    const raw = localStorage.getItem('savedDbs')
-    if (raw) savedDbs.value = JSON.parse(raw)
-    if (!savedDbs.value || !Array.isArray(savedDbs.value)) savedDbs.value = []
-  } catch (e) {
-    savedDbs.value = []
-  }
+  store.loadSaved()
 })
 
 function openSaved(db: any) {
-  selectedDefaults.value = {
+  store.openModalWithDefaults({
     host: db.host,
     user: db.user,
     password: db.password,
@@ -108,37 +101,22 @@ function openSaved(db: any) {
     rowLimit: db.rowLimit,
     name: db.name,
     note: db.note,
-  }
-  open.value = true
+  })
 }
 
 function saveConnection(payload: any) {
-  const id = Date.now()
-  const entry = { id, ...payload }
-  savedDbs.value.unshift(entry)
-  try {
-    localStorage.setItem('savedDbs', JSON.stringify(savedDbs.value))
-  } catch (e) {
-    console.warn('Failed saving connection', e)
-  }
+  store.saveConnection(payload)
 }
 
 function deleteSaved(id: number) {
-  const idx = savedDbs.value.findIndex((s) => s.id === id)
-  if (idx === -1) return
   const ok = confirm('Delete this saved connection?')
   if (!ok) return
-  savedDbs.value.splice(idx, 1)
-  try {
-    localStorage.setItem('savedDbs', JSON.stringify(savedDbs.value))
-  } catch (e) {
-    console.warn('Failed persisting savedDbs after delete', e)
-  }
+  store.deleteSaved(id)
 }
 
 function onConnected(data: any) {
-  dbInfo.value = data
-  resultsFullscreen.value = true
+  store.setDbInfo(data)
+  store.setResultsFullscreen(true)
 }
 
 function onError(e: any) {
@@ -146,15 +124,12 @@ function onError(e: any) {
 }
 
 function closeResults() {
-  resultsFullscreen.value = false
-  dbInfo.value = null
-  selectedDefaults.value = null
-  open.value = false
+  store.clearDbInfo()
 }
 
 // Prevent body/page scrolling while fullscreen results are shown
 watch(
-  () => resultsFullscreen.value,
+  () => store.resultsFullscreen,
   (isOpen) => {
     try {
       document.body.style.overflow = isOpen ? 'hidden' : ''
