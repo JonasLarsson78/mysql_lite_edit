@@ -155,6 +155,7 @@ function onSave() {
 .modal-overlay {
   position: fixed;
   inset: 0;
+  z-index: 999;
   background: linear-gradient(rgba(0, 0, 0, 0.55), rgba(0, 0, 0, 0.65));
   display: flex;
   align-items: center;

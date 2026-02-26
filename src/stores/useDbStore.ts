@@ -4,11 +4,43 @@ export const useDbStore = defineStore('db', {
   state: () => ({
     savedDbs: [] as any[],
     dbInfo: null as any | null,
+    openResults: [] as any[],
+    activeResult: 0 as number,
     selectedDefaults: null as any | null,
     resultsFullscreen: false,
     open: false,
   }),
   actions: {
+    addResult(data: any) {
+      // add to front and select
+      this.openResults.unshift(data)
+      this.activeResult = 0
+      this.setResultsFullscreen(true)
+    },
+    closeResult(idx: number) {
+      if (idx < 0 || idx >= this.openResults.length) return
+      this.openResults.splice(idx, 1)
+      // adjust activeResult when necessary
+      if (this.openResults.length === 0) {
+        // last tab closed -> return to start
+        this.resultsFullscreen = false
+        this.dbInfo = null
+        this.selectedDefaults = null
+        this.open = false
+        this.activeResult = 0
+        return
+      }
+      if (idx < this.activeResult) {
+        this.activeResult = this.activeResult - 1
+      }
+      if (this.activeResult >= this.openResults.length) {
+        this.activeResult = Math.max(0, this.openResults.length - 1)
+      }
+    },
+    setActiveResult(i: number) {
+      if (i < 0 || i >= this.openResults.length) return
+      this.activeResult = i
+    },
     loadSaved() {
       try {
         const raw = localStorage.getItem('savedDbs')

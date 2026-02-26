@@ -35,16 +35,16 @@
             Connect to DB
           </button>
         </div>
-        <div v-if="dbInfo" class="result">
+        <div v-if="currentResult" class="result">
           <div class="result-header">
-            <h3>Database: {{ dbInfo.database }}</h3>
+            <h3>Database: {{ currentResult.database }}</h3>
             <button class="btn-debug" @click="showRaw = !showRaw">
               {{ showRaw ? 'Hide JSON' : 'Show JSON' }}
             </button>
           </div>
-          <ResultsView :dbInfo="dbInfo" />
+          <ResultsView :dbInfo="currentResult" />
           <pre v-if="showRaw" class="debug-json">{{
-            JSON.stringify(dbInfo, null, 2)
+            JSON.stringify(currentResult, null, 2)
           }}</pre>
         </div>
       </div>
@@ -61,29 +61,57 @@
 
     <div v-if="resultsFullscreen" class="results-fullscreen">
       <div class="fs-header">
-        <button class="btn-close" @click="closeResults">← Back</button>
-        <div class="fs-title">Database: {{ dbInfo?.database }}</div>
-        <div class="fs-actions">
-          <button class="btn-close" @click="closeResults">Close</button>
+        <div class="fs-tabs">
+          <button
+            class="btn-primary"
+            @click="open = true"
+            style="margin-right: 8px"
+          >
+            Connect
+          </button>
+          <template v-for="(r, idx) in openResults" :key="idx">
+            <button
+              :class="['fs-tab', { active: idx === activeResult }]"
+              @click="store.setActiveResult(idx)"
+            >
+              <span class="tab-fav">🐘</span>
+              {{ r.database || r.name || 'DB ' + (idx + 1) }}
+              <span class="tab-close" @click.stop="store.closeResult(idx)"
+                >✕</span
+              >
+            </button>
+          </template>
         </div>
       </div>
       <div class="fs-body">
-        <ResultsView :dbInfo="dbInfo" />
+        <ResultsView :dbInfo="openResults[activeResult]" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, watch, computed } from 'vue'
 import DbConnectModal from './components/DbConnectModal.vue'
 import ResultsView from './components/ResultsView.vue'
 import { useDbStore } from './stores/useDbStore'
 import { storeToRefs } from 'pinia'
 
 const store = useDbStore()
-const { savedDbs, open, dbInfo, selectedDefaults, resultsFullscreen } =
-  storeToRefs(store)
+const {
+  savedDbs,
+  open,
+  dbInfo,
+  selectedDefaults,
+  resultsFullscreen,
+  openResults,
+  activeResult,
+} = storeToRefs(store)
+const currentResult = computed(() =>
+  openResults.value && openResults.value.length
+    ? openResults.value[activeResult.value]
+    : dbInfo.value
+)
 const showRaw = ref(false)
 
 // load saved connections from localStorage
@@ -91,7 +119,42 @@ onMounted(() => {
   store.loadSaved()
 })
 
-function openSaved(db: any) {
+async function openSaved(db: any) {
+  // if a result for this database is already open, switch to that tab
+  const idx = store.openResults.findIndex(
+    (r: any) => r?.database === db.database
+  )
+  if (idx !== -1) {
+    store.setActiveResult(idx)
+    store.setResultsFullscreen(true)
+    return
+  }
+
+  // Try to connect immediately and open a new tab. If it fails, open the modal with defaults.
+  try {
+    const res = await fetch('/api/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        host: db.host,
+        user: db.user,
+        password: db.password,
+        database: db.database,
+        port: db.port,
+        rowLimit: db.rowLimit,
+      }),
+    })
+    const data = await res.json()
+    if (res.ok) {
+      store.addResult(data)
+      return
+    }
+    // fallback to modal on error
+    console.warn('Saved connect failed:', data)
+  } catch (e) {
+    console.warn('Saved connect error', e)
+  }
+
   store.openModalWithDefaults({
     host: db.host,
     user: db.user,
@@ -115,16 +178,11 @@ function deleteSaved(id: number) {
 }
 
 function onConnected(data: any) {
-  store.setDbInfo(data)
-  store.setResultsFullscreen(true)
+  store.addResult(data)
 }
 
 function onError(e: any) {
   console.warn('Connect error', e)
-}
-
-function closeResults() {
-  store.clearDbInfo()
 }
 
 // Prevent body/page scrolling while fullscreen results are shown
@@ -153,12 +211,20 @@ watch(
   color: #e6eef6;
 }
 .left-panel {
-  width: 220px;
+  display: none;
+  width: 340px;
   padding: 20px;
   background: linear-gradient(180deg, #161a1f, #101215);
   display: flex;
   flex-direction: column;
   gap: 10px;
+  position: fixed;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  height: 100vh;
+  z-index: 90;
+  overflow: auto;
 }
 .left-panel .logo {
   width: 48px;
@@ -221,6 +287,7 @@ watch(
   justify-content: center;
   padding: 28px;
   background: linear-gradient(180deg, #131417, #0b0c0e);
+  margin-left: 340px;
 }
 .card {
   width: 640px;
@@ -287,7 +354,10 @@ watch(
 /* Fullscreen results overlay */
 .results-fullscreen {
   position: fixed;
-  inset: 0;
+  left: 380px;
+  top: 0;
+  right: 0;
+  bottom: 0;
   background: linear-gradient(180deg, #070707, #0b0b0d);
   z-index: 80;
   padding: 18px;
@@ -300,6 +370,60 @@ watch(
   align-items: center;
   gap: 12px;
   margin-bottom: 8px;
+}
+/* Tabs styling */
+.fs-tabs {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.fs-tab {
+  background: rgba(255, 255, 255, 0.03);
+  color: #cfe8ff;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    background 120ms ease,
+    transform 60ms ease;
+}
+.fs-tab:hover {
+  background: rgba(255, 255, 255, 0.06);
+  transform: translateY(-1px);
+}
+.fs-tab.active {
+  background: linear-gradient(180deg, #ff8f2f, #ff6a00);
+  color: #111;
+  box-shadow: 0 8px 20px rgba(255, 106, 0, 0.12);
+}
+.tab-close {
+  margin-left: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-size: 12px;
+  opacity: 0.95;
+  color: inherit;
+}
+.tab-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+.tab-fav {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  margin-right: 8px;
+  background: linear-gradient(135deg, #ff9a00, #ff6a00);
+  font-size: 12px;
+  line-height: 1;
 }
 .btn-close {
   background: transparent;
@@ -332,11 +456,19 @@ pre {
 }
 
 @media (max-width: 800px) {
+  /* On small screens reduce left panel width */
   .left-panel {
-    display: none;
+    width: 220px;
+  }
+  .main-area {
+    margin-left: 220px;
+  }
+  .results-fullscreen {
+    left: 220px;
+    padding: 12px;
   }
   .card {
-    width: 100%;
+    width: calc(100% - 40px);
   }
 }
 </style>

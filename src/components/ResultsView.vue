@@ -18,11 +18,6 @@
     <section class="detail-pane" v-if="selectedTable">
       <div class="detail-header">
         <h3>{{ selectedTable.name }}</h3>
-        <div class="meta">{{ selectedTable.columns.length }} columns</div>
-      </div>
-
-      <div class="detail-toolbar">
-        <div class="count">Rows: {{ selectedTable.rows.length }}</div>
         <div class="spacer"></div>
         <label class="compact-toggle"
           ><input type="checkbox" v-model="compact" /> Compact</label
@@ -79,6 +74,8 @@ watch(
   { immediate: true }
 )
 
+/* no pointer listeners */
+
 function select(name: string) {
   selected.value = name
 }
@@ -115,7 +112,7 @@ function formatCell(val: any) {
   overflow: hidden;
 }
 .tables-pane {
-  width: 220px;
+  width: 340px;
   background: #0b0b0c;
   padding: 8px;
   color: #bcdff6;
@@ -156,6 +153,7 @@ function formatCell(val: any) {
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: auto;
 }
 .detail-header h3 {
   margin: 0;
@@ -190,9 +188,11 @@ function formatCell(val: any) {
   background: #060607;
   min-height: 0;
   height: 100%;
+  position: relative;
 }
 .rows-table table {
-  width: 100%;
+  display: inline-block;
+  width: max-content;
   border-collapse: separate;
   border-spacing: 0;
   font-family:
@@ -211,6 +211,13 @@ function formatCell(val: any) {
   text-align: left;
   border-bottom: 1px solid rgba(255, 255, 255, 0.03);
 }
+/* Prevent wrapping so horizontal scroll is triggered when needed */
+.rows-table thead th,
+.rows-table tbody td {
+  white-space: nowrap;
+}
+
+/* dragging and scroll-hint removed */
 .rows-table thead th::after {
   content: '';
   position: absolute;
@@ -227,8 +234,8 @@ function formatCell(val: any) {
   font-size: 12px;
   color: #d9f0ff;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
 }
 .rows-table tbody tr:nth-child(odd) {
   background: rgba(255, 255, 255, 0.01);
@@ -275,13 +282,14 @@ function formatCell(val: any) {
   text-align: left;
 }
 .cell-val {
-  max-width: 360px;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  overflow: visible;
+  text-overflow: clip;
 }
 .rows-table thead th:not(:first-child),
 .rows-table tbody td:not(:first-child) {
   border-left: 1px solid rgba(255, 255, 255, 0.01);
 }
+
+/* tables-pane fixed width enforced; responsive shrink removed */
 </style>
