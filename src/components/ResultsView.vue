@@ -19,6 +19,11 @@
           <span class="name">{{ t.name }}</span>
         </li>
       </ul>
+        <div class="tables-actions">
+          <button class="sql-btn" @click="createTableOpen = true">Create Table</button>
+          <button class="sql-btn" @click="insertRowOpen = true" :disabled="!selectedTable || selectedTable.name === 'Query Result'" style="margin-left:8px">Insert Row</button>
+          <button class="sql-btn" @click="dropTable" :disabled="!selectedTable || selectedTable.name === 'Query Result'" style="margin-left:8px">Drop Table</button>
+        </div>
     </aside>
 
     <section class="detail-pane" v-if="selectedTable">
@@ -46,6 +51,8 @@
           >
           <span v-else>SQL</span>
         </button>
+
+        
 
         <h4>Rows (sample)</h4>
         <div class="rows-table">
@@ -103,6 +110,20 @@
       </div>
     </section>
 
+    <!-- Fallback when database has no tables -->
+    <section class="detail-pane" v-else>
+      <div class="detail-header">
+        <h3>No tables found</h3>
+        <div class="spacer"></div>
+      </div>
+      <div class="rows">
+        <p style="color:#9fb0c7">This database doesn't contain any tables yet.</p>
+      </div>
+    </section>
+
+    <CreateTableModal v-model:modelValue="createTableOpen" :conn="dbInfo?._conn || dbInfo" @created="onTableCreated" />
+    <InsertRowModal v-model:modelValue="insertRowOpen" :conn="dbInfo?._conn || dbInfo" :tableName="selectedTable?.name || ''" :columns="selectedTable?.columns || []" @inserted="onRowInserted" />
+
     <!-- SQL Editor Modal -->
     <div
       v-if="sqlModalOpen"
@@ -134,6 +155,8 @@ import { useDbStore } from '../stores/useDbStore'
 import { storeToRefs } from 'pinia'
 import { useSqlModal } from '../composables/useSqlModal'
 import { useCellEditing } from '../composables/useCellEditing'
+import CreateTableModal from './CreateTableModal.vue'
+import InsertRowModal from './InsertRowModal.vue'
 const props = defineProps<{ dbInfo: any }>()
 const dbInfo = toRef(props, 'dbInfo')
 
@@ -168,6 +191,7 @@ const emit = defineEmits<{
       newValue: any
     }
   ): void
+  (e: 'refresh-db', payload: { database: string }): void
 }>()
 
 watch(
@@ -182,6 +206,46 @@ watch(
 
 function select(name: string) {
   selected.value = name
+}
+
+const createTableOpen = ref(false)
+const insertRowOpen = ref(false)
+
+async function dropTable() {
+  if (!selectedTable.value) return
+  const ok = confirm(`Drop table ${selectedTable.value.name}? This cannot be undone.`)
+  if (!ok) return
+  try {
+    const conn = dbInfo.value?._conn
+    if (!conn) throw new Error('No connection info')
+    const payload = {
+      host: conn.host,
+      user: conn.user,
+      password: conn.password,
+      database: conn.database,
+      port: conn.port,
+      tableName: selectedTable.value.name,
+    }
+    const res = await fetch('/api/drop-table', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data?.error || 'Drop failed')
+    // signal parent/store to refresh the DB info
+    emit('refresh-db', { database: conn.database })
+  } catch (err: any) {
+    alert('Drop table failed: ' + (err?.message || String(err)))
+  }
+}
+
+function onTableCreated(_res: any) {
+  const conn = dbInfo.value?._conn
+  if (conn) emit('refresh-db', { database: conn.database })
+}
+
+function onRowInserted(_res: any) {
+  const conn = dbInfo.value?._conn
+  if (conn) emit('refresh-db', { database: conn.database })
 }
 
 // modal logic moved to composable
@@ -235,6 +299,30 @@ const {
   list-style: none;
   padding: 4px 0;
   margin: 0;
+}
+
+/* make sidebar layout vertical and allow table list to scroll while actions stay pinned */
+.tables-pane {
+  display: flex;
+  flex-direction: column;
+}
+.tables-list {
+  flex: 1 1 auto;
+  overflow: auto;
+}
+
+.tables-actions {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.03);
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-start;
+}
+.tables-actions .sql-btn {
+  padding: 8px 10px;
+  font-size: 13px;
 }
 .tables-item {
   display: flex;

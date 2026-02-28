@@ -51,6 +51,7 @@
             :dbInfo="currentResult"
             @execute-sql="handleExecuteSql"
             @cell-updated="handleCellUpdated"
+            @refresh-db="handleRefreshDb"
           />
           <pre v-if="showRaw" class="debug-json">{{
             JSON.stringify(currentResult, null, 2)
@@ -98,6 +99,7 @@
           :dbInfo="openResults[activeResult]"
           @execute-sql="handleExecuteSql"
           @cell-updated="handleCellUpdated"
+            @refresh-db="handleRefreshDb"
         />
       </div>
     </div>
@@ -333,6 +335,53 @@ async function handleExecuteSql(payload: any) {
     if (store.selectedSql && store.selectedSql.open) store.closeSqlEditor()
   } catch (e) {
     alert('Query error: ' + String(e))
+  } finally {
+    try {
+      if (conn && conn.database) store.setLoading(conn.database, false)
+    } catch (e) {
+      /* ignore */
+    }
+  }
+}
+
+async function handleRefreshDb(payload: any) {
+  const database = payload?.database
+  if (!database) return
+
+  // find connection creds from openResults or current dbInfo
+  let conn: any = null
+  const idx = store.openResults.findIndex((r: any) => r?.database === database)
+  if (idx !== -1 && store.openResults[idx]._conn) conn = store.openResults[idx]._conn
+  else if (store.dbInfo && store.dbInfo.database === database && store.dbInfo._conn) conn = store.dbInfo._conn
+
+  if (!conn) {
+    showToast('No connection credentials available for this DB. Re-open via Connect to refresh.', 'error')
+    return
+  }
+
+  try {
+    store.setLoading(conn.database, true)
+    const res = await fetch('/api/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host: conn.host, user: conn.user, password: conn.password, database: conn.database, port: conn.port }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      showToast('Refresh failed: ' + (data?.message || JSON.stringify(data)), 'error')
+      return
+    }
+
+    const withConn = { ...data, _conn: conn }
+
+    if (idx !== -1) {
+      store.updateResultAt(idx, withConn)
+    } else {
+      store.setDbInfo(withConn)
+    }
+  } catch (e) {
+    showToast('Refresh error: ' + String(e), 'error')
+    console.error('refresh error', e)
   } finally {
     try {
       if (conn && conn.database) store.setLoading(conn.database, false)
