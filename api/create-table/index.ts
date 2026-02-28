@@ -21,7 +21,8 @@ function validateType(t: string) {
   const s = t.trim().toUpperCase()
   // allow common MySQL types with optional length/precision
   // allow common MySQL types with optional length/precision
-  const common = /^(INT|TINYINT|SMALLINT|MEDIUMINT|BIGINT)(\(\d+\))?$/.test(s) ||
+  const common =
+    /^(INT|TINYINT|SMALLINT|MEDIUMINT|BIGINT)(\(\d+\))?$/.test(s) ||
     /^(VARCHAR|CHAR)\(\d+\)$/.test(s) ||
     /^(TEXT|MEDIUMTEXT|LONGTEXT)$/.test(s) ||
     /^(DATE|DATETIME|TIMESTAMP)$/.test(s) ||
@@ -46,22 +47,48 @@ export default async function handler(req: any, res: any) {
     return res.status(400).json({ error: err.message || 'Invalid JSON' })
   }
 
-  const { host, user, password, database, port, tableName, columns } = body || {}
+  const { host, user, password, database, port, tableName, columns } =
+    body || {}
 
-  if (!host || !user || !database || !tableName || !Array.isArray(columns) || columns.length === 0)
-    return res.status(400).json({ error: 'Missing required fields: host,user,database,tableName,columns' })
+  if (
+    !host ||
+    !user ||
+    !database ||
+    !tableName ||
+    !Array.isArray(columns) ||
+    columns.length === 0
+  )
+    return res
+      .status(400)
+      .json({
+        error: 'Missing required fields: host,user,database,tableName,columns',
+      })
 
-  if (!validateIdent(tableName)) return res.status(400).json({ error: 'Invalid table name' })
+  if (!validateIdent(tableName))
+    return res.status(400).json({ error: 'Invalid table name' })
 
   for (const c of columns) {
-    if (!c || !c.name || !c.type) return res.status(400).json({ error: 'Each column must have name and type' })
-    if (!validateIdent(c.name)) return res.status(400).json({ error: `Invalid column name: ${c.name}` })
-    if (!validateType(String(c.type))) return res.status(400).json({ error: `Invalid or unsupported column type: ${c.type}` })
+    if (!c || !c.name || !c.type)
+      return res
+        .status(400)
+        .json({ error: 'Each column must have name and type' })
+    if (!validateIdent(c.name))
+      return res.status(400).json({ error: `Invalid column name: ${c.name}` })
+    if (!validateType(String(c.type)))
+      return res
+        .status(400)
+        .json({ error: `Invalid or unsupported column type: ${c.type}` })
   }
 
   let conn: any
   try {
-    conn = await mysql.createConnection({ host, user, password, database, port })
+    conn = await mysql.createConnection({
+      host,
+      user,
+      password,
+      database,
+      port,
+    })
 
     const parts: string[] = []
     const pkCols: string[] = []
@@ -71,13 +98,15 @@ export default async function handler(req: any, res: any) {
       pieces.push(String(c.type).toUpperCase())
       if (c.autoIncrement) pieces.push('AUTO_INCREMENT')
       if (c.nullable === false || c.notNull) pieces.push('NOT NULL')
-      if (c.default !== undefined) pieces.push(`DEFAULT ${conn.escape(c.default)}`)
+      if (c.default !== undefined)
+        pieces.push(`DEFAULT ${conn.escape(c.default)}`)
       parts.push(pieces.join(' '))
       if (c.primary) pkCols.push(c.name)
     }
 
     let sql = `CREATE TABLE IF NOT EXISTS \`${tableName}\` (${parts.join(', ')}`
-    if (pkCols.length > 0) sql += `, PRIMARY KEY (${pkCols.map((n) => `\`${n}\``).join(', ')})`
+    if (pkCols.length > 0)
+      sql += `, PRIMARY KEY (${pkCols.map((n) => `\`${n}\``).join(', ')})`
     sql += ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
 
     const [result] = await conn.execute(sql)
@@ -87,6 +116,11 @@ export default async function handler(req: any, res: any) {
     console.error('api/create-table error:', err)
     return res.status(500).json({ error: err?.message || String(err) })
   } finally {
-    if (conn) try { await conn.end() } catch (e) { /* ignore */ }
+    if (conn)
+      try {
+        await conn.end()
+      } catch (e) {
+        /* ignore */
+      }
   }
 }

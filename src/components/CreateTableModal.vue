@@ -7,21 +7,53 @@
         <input v-model="tableName" />
       </div>
 
-      <div v-if="!props.conn" style="margin-top:8px;padding:8px;border-radius:6px;background:#071018;color:#9fb0c7;font-size:13px">
-        <div style="font-weight:600;margin-bottom:6px">No connection available</div>
-        <div style="font-size:13px;margin-bottom:6px">Open the Connect dialog or select a saved connection so credentials are available to create the table.</div>
+      <div
+        v-if="!props.conn"
+        style="
+          margin-top: 8px;
+          padding: 8px;
+          border-radius: 6px;
+          background: #071018;
+          color: #9fb0c7;
+          font-size: 13px;
+        "
+      >
+        <div style="font-weight: 600; margin-bottom: 6px">
+          No connection available
+        </div>
+        <div style="font-size: 13px; margin-bottom: 6px">
+          Open the Connect dialog or select a saved connection so credentials
+          are available to create the table.
+        </div>
       </div>
 
       <div class="columns">
         <div v-for="(c, idx) in columns" :key="idx" class="col-row">
           <input v-model="c.name" placeholder="column" />
           <select v-model="c.type">
-            <option v-for="t in commonTypes" :key="t.value" :value="t.value">{{ t.label }}</option>
+            <option v-for="t in commonTypes" :key="t.value" :value="t.value">
+              {{ t.label }}
+            </option>
           </select>
-          <div style="display:flex;flex-direction:column">
-            <input v-if="c.type === 'OTHER'" v-model="c.typeCustom" placeholder="CUSTOM TYPE" />
-            <div class="type-desc" v-if="getTypeDesc(c)" style="font-size:12px;color:#9fb0c7;margin-left:6px">{{ getTypeDesc(c) }}</div>
-            <div v-if="typeErrors[idx]" style="color:#ffb4a2;font-size:12px;margin-left:6px">{{ typeErrors[idx] }}</div>
+          <div style="display: flex; flex-direction: column">
+            <input
+              v-if="c.type === 'OTHER'"
+              v-model="c.typeCustom"
+              placeholder="CUSTOM TYPE"
+            />
+            <div
+              class="type-desc"
+              v-if="getTypeDesc(c)"
+              style="font-size: 12px; color: #9fb0c7; margin-left: 6px"
+            >
+              {{ getTypeDesc(c) }}
+            </div>
+            <div
+              v-if="typeErrors[idx]"
+              style="color: #ffb4a2; font-size: 12px; margin-left: 6px"
+            >
+              {{ typeErrors[idx] }}
+            </div>
           </div>
           <label><input type="checkbox" v-model="c.primary" /> PK</label>
           <label><input type="checkbox" v-model="c.autoIncrement" /> AI</label>
@@ -35,7 +67,13 @@
 
       <div class="actions">
         <button @click="close" class="btn-muted">Cancel</button>
-        <button @click="onCreate" class="btn-primary" :disabled="!isFormValid || !props.conn">Create</button>
+        <button
+          @click="onCreate"
+          class="btn-primary"
+          :disabled="!isFormValid || !props.conn"
+        >
+          Create
+        </button>
       </div>
     </div>
   </div>
@@ -52,7 +90,14 @@ const emit = defineEmits<{
 
 const tableName = ref('')
 const columns = ref<any[]>([
-  { name: 'id', type: 'INT', primary: true, autoIncrement: true, nullable: false, typeCustom: '' },
+  {
+    name: 'id',
+    type: 'INT',
+    primary: true,
+    autoIncrement: true,
+    nullable: false,
+    typeCustom: '',
+  },
 ])
 
 // no local credential inputs — credentials must come from props.conn or the store
@@ -67,14 +112,27 @@ watch(
       // reset defaults when opened
       tableName.value = ''
       columns.value = [
-        { name: 'id', type: 'INT', primary: true, autoIncrement: true, nullable: false },
+        {
+          name: 'id',
+          type: 'INT',
+          primary: true,
+          autoIncrement: true,
+          nullable: false,
+        },
       ]
     }
   }
 )
 
 function addColumn() {
-  columns.value.push({ name: '', type: 'VARCHAR(255)', primary: false, autoIncrement: false, nullable: true, typeCustom: '' })
+  columns.value.push({
+    name: '',
+    type: 'VARCHAR(255)',
+    primary: false,
+    autoIncrement: false,
+    nullable: true,
+    typeCustom: '',
+  })
 }
 
 const typeMap = computed(() => {
@@ -118,14 +176,19 @@ const typeErrors = computed(() => {
 
 const isFormValid = computed(() => {
   if (!tableName.value || String(tableName.value).trim() === '') return false
-  for (const c of columns.value) if (!c.name || String(c.name).trim() === '') return false
+  for (const c of columns.value)
+    if (!c.name || String(c.name).trim() === '') return false
   return typeErrors.value.every((e: string) => !e)
 })
 
 async function onCreate() {
   if (!tableName.value) return alert('Table name required')
-  if (!props.conn) return alert('No connection information available — open Connect to provide credentials')
-  if (!isFormValid.value) return alert('Please fix column errors before creating the table')
+  if (!props.conn)
+    return alert(
+      'No connection information available — open Connect to provide credentials'
+    )
+  if (!isFormValid.value)
+    return alert('Please fix column errors before creating the table')
   try {
     const payload = {
       host: props.conn.host,
@@ -159,12 +222,46 @@ async function onCreate() {
 
 <style scoped>
 .modal-overlay {
-  position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.45);
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
 }
-.modal { background: #0c0f11; color: #e6eef6; padding: 12px; border-radius:8px; width:520px }
-.field { margin-bottom:8px }
-.col-row { display:flex; gap:8px; align-items:center; margin-bottom:6px }
-.actions { display:flex; justify-content:flex-end; gap:8px; margin-top:10px }
-.btn-primary { background: linear-gradient(180deg,#ff8f2f,#ff6a00); color:#111; padding:6px 10px; border-radius:6px }
-.btn-muted { background:transparent; border:1px solid rgba(255,255,255,0.04); color:#cbdbe8; padding:6px 10px; border-radius:6px }
+.modal {
+  background: #0c0f11;
+  color: #e6eef6;
+  padding: 12px;
+  border-radius: 8px;
+  width: 520px;
+}
+.field {
+  margin-bottom: 8px;
+}
+.col-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+.btn-primary {
+  background: linear-gradient(180deg, #ff8f2f, #ff6a00);
+  color: #111;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
+.btn-muted {
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  color: #cbdbe8;
+  padding: 6px 10px;
+  border-radius: 6px;
+}
 </style>

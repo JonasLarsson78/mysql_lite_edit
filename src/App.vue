@@ -99,7 +99,7 @@
           :dbInfo="openResults[activeResult]"
           @execute-sql="handleExecuteSql"
           @cell-updated="handleCellUpdated"
-            @refresh-db="handleRefreshDb"
+          @refresh-db="handleRefreshDb"
         />
       </div>
     </div>
@@ -351,11 +351,20 @@ async function handleRefreshDb(payload: any) {
   // find connection creds from openResults or current dbInfo
   let conn: any = null
   const idx = store.openResults.findIndex((r: any) => r?.database === database)
-  if (idx !== -1 && store.openResults[idx]._conn) conn = store.openResults[idx]._conn
-  else if (store.dbInfo && store.dbInfo.database === database && store.dbInfo._conn) conn = store.dbInfo._conn
+  if (idx !== -1 && store.openResults[idx]._conn)
+    conn = store.openResults[idx]._conn
+  else if (
+    store.dbInfo &&
+    store.dbInfo.database === database &&
+    store.dbInfo._conn
+  )
+    conn = store.dbInfo._conn
 
   if (!conn) {
-    showToast('No connection credentials available for this DB. Re-open via Connect to refresh.', 'error')
+    showToast(
+      'No connection credentials available for this DB. Re-open via Connect to refresh.',
+      'error'
+    )
     return
   }
 
@@ -364,11 +373,20 @@ async function handleRefreshDb(payload: any) {
     const res = await fetch('/api/connect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host: conn.host, user: conn.user, password: conn.password, database: conn.database, port: conn.port }),
+      body: JSON.stringify({
+        host: conn.host,
+        user: conn.user,
+        password: conn.password,
+        database: conn.database,
+        port: conn.port,
+      }),
     })
     const data = await res.json()
     if (!res.ok) {
-      showToast('Refresh failed: ' + (data?.message || JSON.stringify(data)), 'error')
+      showToast(
+        'Refresh failed: ' + (data?.message || JSON.stringify(data)),
+        'error'
+      )
       return
     }
 

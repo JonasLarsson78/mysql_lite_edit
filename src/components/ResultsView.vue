@@ -19,11 +19,27 @@
           <span class="name">{{ t.name }}</span>
         </li>
       </ul>
-        <div class="tables-actions">
-          <button class="sql-btn" @click="createTableOpen = true">Create Table</button>
-          <button class="sql-btn" @click="insertRowOpen = true" :disabled="!selectedTable || selectedTable.name === 'Query Result'" style="margin-left:8px">Insert Row</button>
-          <button class="sql-btn" @click="dropTable" :disabled="!selectedTable || selectedTable.name === 'Query Result'" style="margin-left:8px">Drop Table</button>
-        </div>
+      <div class="tables-actions">
+        <button class="sql-btn" @click="createTableOpen = true">
+          Create Table
+        </button>
+        <button
+          class="sql-btn"
+          @click="insertRowOpen = true"
+          :disabled="!selectedTable || selectedTable.name === 'Query Result'"
+          style="margin-left: 8px"
+        >
+          Insert Row
+        </button>
+        <button
+          class="sql-btn"
+          @click="dropTable"
+          :disabled="!selectedTable || selectedTable.name === 'Query Result'"
+          style="margin-left: 8px"
+        >
+          Drop Table
+        </button>
+      </div>
     </aside>
 
     <section class="detail-pane" v-if="selectedTable">
@@ -51,8 +67,6 @@
           >
           <span v-else>SQL</span>
         </button>
-
-        
 
         <h4>Rows (sample)</h4>
         <div class="rows-table">
@@ -117,12 +131,24 @@
         <div class="spacer"></div>
       </div>
       <div class="rows">
-        <p style="color:#9fb0c7">This database doesn't contain any tables yet.</p>
+        <p style="color: #9fb0c7">
+          This database doesn't contain any tables yet.
+        </p>
       </div>
     </section>
 
-    <CreateTableModal v-model:modelValue="createTableOpen" :conn="dbInfo?._conn || dbInfo" @created="onTableCreated" />
-    <InsertRowModal v-model:modelValue="insertRowOpen" :conn="dbInfo?._conn || dbInfo" :tableName="selectedTable?.name || ''" :columns="selectedTable?.columns || []" @inserted="onRowInserted" />
+    <CreateTableModal
+      v-model:modelValue="createTableOpen"
+      :conn="dbInfo?._conn || dbInfo"
+      @created="onTableCreated"
+    />
+    <InsertRowModal
+      v-model:modelValue="insertRowOpen"
+      :conn="dbInfo?._conn || dbInfo"
+      :tableName="selectedTable?.name || ''"
+      :columns="selectedTable?.columns || []"
+      @inserted="onRowInserted"
+    />
 
     <!-- SQL Editor Modal -->
     <div
@@ -213,7 +239,9 @@ const insertRowOpen = ref(false)
 
 async function dropTable() {
   if (!selectedTable.value) return
-  const ok = confirm(`Drop table ${selectedTable.value.name}? This cannot be undone.`)
+  const ok = confirm(
+    `Drop table ${selectedTable.value.name}? This cannot be undone.`
+  )
   if (!ok) return
   try {
     const conn = dbInfo.value?._conn
@@ -227,7 +255,9 @@ async function dropTable() {
       tableName: selectedTable.value.name,
     }
     const res = await fetch('/api/drop-table', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
     })
     const data = await res.json()
     if (!res.ok) throw new Error(data?.error || 'Drop failed')
@@ -314,7 +344,7 @@ const {
 .tables-actions {
   margin-top: 12px;
   padding-top: 10px;
-  border-top: 1px solid rgba(255,255,255,0.03);
+  border-top: 1px solid rgba(255, 255, 255, 0.03);
   display: flex;
   gap: 8px;
   align-items: center;

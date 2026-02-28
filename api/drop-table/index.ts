@@ -30,13 +30,22 @@ export default async function handler(req: any, res: any) {
   const { host, user, password, database, port, tableName } = body || {}
 
   if (!host || !user || !database || !tableName)
-    return res.status(400).json({ error: 'Missing required fields: host,user,database,tableName' })
+    return res
+      .status(400)
+      .json({ error: 'Missing required fields: host,user,database,tableName' })
 
-  if (!validateIdent(tableName)) return res.status(400).json({ error: 'Invalid table name' })
+  if (!validateIdent(tableName))
+    return res.status(400).json({ error: 'Invalid table name' })
 
   let conn: any
   try {
-    conn = await mysql.createConnection({ host, user, password, database, port })
+    conn = await mysql.createConnection({
+      host,
+      user,
+      password,
+      database,
+      port,
+    })
     const sql = `DROP TABLE IF EXISTS \`${tableName}\``
     const [result] = await conn.execute(sql)
     return res.status(200).json({ ok: true, result })
@@ -44,6 +53,11 @@ export default async function handler(req: any, res: any) {
     console.error('api/drop-table error:', err)
     return res.status(500).json({ error: err?.message || String(err) })
   } finally {
-    if (conn) try { await conn.end() } catch (e) { /* ignore */ }
+    if (conn)
+      try {
+        await conn.end()
+      } catch (e) {
+        /* ignore */
+      }
   }
 }
