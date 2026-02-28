@@ -63,7 +63,13 @@ API usage (example)
 POST `/api/connect` with JSON body:
 
 ```json
-{ "host": "db.example.com", "port": 3306, "user": "root", "password": "secret", "database": "mydb" }
+{
+  "host": "db.example.com",
+  "port": 3306,
+  "user": "root",
+  "password": "secret",
+  "database": "mydb"
+}
 ```
 
 POST `/api/query` with JSON body `{ "sql": "SELECT * FROM users LIMIT 100" }` returns rows and column metadata.
