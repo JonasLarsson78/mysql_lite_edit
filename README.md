@@ -2,48 +2,75 @@
 
 Lightweight Vue 3 + TypeScript app for quickly connecting to and inspecting MySQL databases.
 
-Status: MVP (Minimum Viable Product) — basic functionality is implemented, stability and edge-case handling are limited.
+Status: MVP (Minimum Viable Product) — basic functionality is implemented; stability and edge-case handling are limited.
 
-What it does
+Features
 
 - Connect to remote MySQL databases (host, port, user, password, database).
-- Run arbitrary SQL queries and view results in a compact table view.
-- Edit single cells in query results and send updates back to the server.
-- Open multiple result tabs and run queries within the active tab.
+- Run arbitrary SQL queries and view results in a compact, editable table view.
+- Edit single cells in query results and persist updates back to the server.
+- Open multiple result tabs and run queries per tab.
+- Create and drop tables (via UI/API).
+- Insert rows from a form and execute single-row inserts.
+- Update rows from inline cell edits or query-driven updates.
+- Lightweight client-side editing helpers in `src/composables` (cell editing, SQL modal).
+- State management with Pinia (`src/stores/useDbStore.ts`) to track connections, results and UI state.
+- Serverless API endpoints (under `api/`) that perform connection, query and modification actions.
 
-How it works (high level)
+Backend API (serverless endpoints)
 
-- Frontend: Vue 3 + TypeScript + Vite. UI components live under `src/components`.
-- State: Pinia store at `src/stores/useDbStore.ts` tracks open results, loading state and UI flags.
-- Composables: small reusable logic lives in `src/composables` (e.g. SQL modal, cell editing).
-- Backend API: lightweight server endpoints under `api/` — `/api/connect`, `/api/query`, `/api/update` handle connecting, querying and updating.
-- Security: credentials are sent to the server for each request; this project is an example tool and not hardened for production use.
+- `api/connect` — open a connection to a MySQL server (per-request credentials).
+- `api/query` — run SELECT and other read queries and return JSON results.
+- `api/update` — apply row updates originating from editable cells.
+- `api/insert-row` — insert a single row into a table.
+- `api/create-table` — create a table from a supplied CREATE TABLE query.
+- `api/drop-table` — drop a table by name.
+
+Files of interest
+
+- Frontend: `src/` (components, composables, stores).
+- UI components: `src/components/` (CreateTableModal, DbConnectModal, InsertRowModal, ResultsView, etc.).
+- Composables: `src/composables/` (small reusable logic like `useCellEditing.ts`).
+- API routes: `api/` (connect, query, update, insert-row, create-table, drop-table).
+
+Security & limitations
+
+- This project is an example tooling app and is not hardened for production.
+- Credentials are sent to the server on each request; avoid exposing this app on untrusted networks.
+- No connection pooling, limited error handling and no pagination for large result sets — very large queries may be slow or memory intensive.
 
 Running locally
 
-1. Install dependencies:
+1. Install dependencies
 
 ```bash
 npm install
 ```
 
-2. Start the dev server:
+2. Start the dev server
 
 ```bash
 npm run dev
 ```
 
-3. The UI exposes a `Connect to DB` dialog — fill in connection credentials and click Connect. After connecting you can open tabs, run SQL and edit cells.
+3. Use the UI
 
-Notes & limitations (MVP)
+- Click `Connect to DB`, enter your credentials and connect.
+- Open a new tab to run SQL queries or use the provided modals to create tables and insert rows.
 
-- No connection pooling, limited error handling and no advanced security features.
-- Credentials are used client→server for each request; treat this as a local tool or run behind a trusted network.
-- Performance: large result sets are not paginated — queries returning many rows may be slow.
+API usage (example)
+
+POST `/api/connect` with JSON body:
+
+```json
+{ "host": "db.example.com", "port": 3306, "user": "root", "password": "secret", "database": "mydb" }
+```
+
+POST `/api/query` with JSON body `{ "sql": "SELECT * FROM users LIMIT 100" }` returns rows and column metadata.
 
 Contributing
 
-- Open an issue or send a PR. Recommended changes: improve validation, add pagination, and add better error handling and tests.
+- Open an issue or send a PR. Helpful improvements: add pagination, stronger input validation, better error handling, tests and connection pooling.
 
 License
 

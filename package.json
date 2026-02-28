@@ -1,7 +1,19 @@
 {
   "name": "mysql_lite_edit",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
+  "description": "Lightweight Vue 3 + TypeScript app for quickly connecting to and inspecting MySQL databases.",
+  "author": "Jonas Larsson, Github AI Assistant",
+  "license": "MIT",
+  "homepage": "https://mysql-lite-edit.vercel.app/",
+  "keywords": [
+    "mysql",
+    "database",
+    "vue",
+    "vite",
+    "pinia",
+    "devtools"
+  ],
   "type": "module",
   "scripts": {
     "dev": "vite",
