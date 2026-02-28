@@ -45,6 +45,7 @@
           <ResultsView
             :dbInfo="currentResult"
             @execute-sql="handleExecuteSql"
+            @cell-updated="handleCellUpdated"
           />
           <pre v-if="showRaw" class="debug-json">{{
             JSON.stringify(currentResult, null, 2)
@@ -91,7 +92,15 @@
         <ResultsView
           :dbInfo="openResults[activeResult]"
           @execute-sql="handleExecuteSql"
+          @cell-updated="handleCellUpdated"
         />
+      </div>
+    </div>
+
+    <!-- Toast container -->
+    <div class="toasts">
+      <div v-for="t in toasts" :key="t.id" :class="['toast', t.type]">
+        {{ t.message }}
       </div>
     </div>
   </div>
@@ -120,6 +129,17 @@ const currentResult = computed(() =>
     : dbInfo.value
 )
 const showRaw = ref(false)
+const toasts = ref<Array<{ id: number; message: string; type?: string }>>([])
+let toastId = 1
+
+function showToast(message: string, type = 'info') {
+  const id = toastId++
+  toasts.value.push({ id, message, type })
+  setTimeout(() => {
+    const idx = toasts.value.findIndex((t) => t.id === id)
+    if (idx !== -1) toasts.value.splice(idx, 1)
+  }, 3000)
+}
 
 // load saved connections from localStorage
 onMounted(() => {
@@ -298,6 +318,100 @@ async function handleExecuteSql(payload: any) {
   }
 }
 
+async function handleCellUpdated(payload: any) {
+  const { database, table, rowIndex, column, row, oldValue, newValue } =
+    payload || {}
+  if (!table || rowIndex === undefined) return
+
+  // find connection creds similar to handleExecuteSql
+  let conn: any = null
+  const found = store.openResults.find((r: any) => r?.database === database)
+  if (found && found._conn) conn = found._conn
+  else if (
+    store.dbInfo &&
+    store.dbInfo.database === database &&
+    store.dbInfo._conn
+  )
+    conn = store.dbInfo._conn
+
+  if (!conn) {
+    alert(
+      'No connection credentials available for this DB. Re-open via Connect to enable updates.'
+    )
+    return
+  }
+
+  const updates: any = { [column]: newValue }
+
+  try {
+    const res = await fetch('/api/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        host: conn.host,
+        user: conn.user,
+        password: conn.password,
+        database: conn.database,
+        port: conn.port,
+        table,
+        updates,
+        row,
+      }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      showToast(
+        'Update failed: ' + (data?.error || JSON.stringify(data)),
+        'error'
+      )
+      console.error('update failed', data)
+      // revert UI change
+      revertLocalChange(database, table, rowIndex, column, oldValue)
+      return
+    }
+    showToast('Update saved', 'success')
+    console.log('update ok', data)
+    // mark cell as recently saved for UI highlight
+    if (store && store.markCellSaved)
+      store.markCellSaved({ database, table, rowIndex, column })
+  } catch (e) {
+    showToast('Update error: ' + String(e), 'error')
+    console.error(e)
+    revertLocalChange(database, table, rowIndex, column, oldValue)
+  }
+}
+
+function revertLocalChange(
+  database: string,
+  table: string,
+  rowIndex: number,
+  column: string,
+  oldValue: any
+) {
+  try {
+    // try openResults first
+    const target = store.openResults.find((r: any) => r?.database === database)
+    if (target) {
+      const tbl = target.tables.find((t: any) => t.name === table)
+      if (tbl && tbl.rows && tbl.rows[rowIndex]) {
+        tbl.rows[rowIndex][column] = oldValue
+        return
+      }
+    }
+
+    // fallback to store.dbInfo
+    if (store.dbInfo && store.dbInfo.database === database) {
+      const tbl = store.dbInfo.tables.find((t: any) => t.name === table)
+      if (tbl && tbl.rows && tbl.rows[rowIndex]) {
+        tbl.rows[rowIndex][column] = oldValue
+        return
+      }
+    }
+  } catch (err) {
+    console.error('revertLocalChange error', err)
+  }
+}
+
 function onError(e: any) {
   console.warn('Connect error', e)
 }
@@ -329,7 +443,7 @@ watch(
 }
 .left-panel {
   display: none;
-  width: 340px;
+  width: 280px;
   padding: 20px;
   background: linear-gradient(180deg, #161a1f, #101215);
   display: flex;
@@ -404,8 +518,36 @@ watch(
   justify-content: center;
   padding: 28px;
   background: linear-gradient(180deg, #131417, #0b0c0e);
-  margin-left: 340px;
+  margin-left: 300px;
 }
+
+/* Toast styles */
+.toasts {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 1200;
+}
+.toast {
+  background: rgba(10, 10, 10, 0.9);
+  color: #e6eef6;
+  padding: 8px 12px;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+  font-size: 13px;
+}
+.toast.success {
+  background: linear-gradient(90deg, #23c552, #1aa34a);
+  color: #04210a;
+}
+.toast.error {
+  background: linear-gradient(90deg, #ff6a6a, #ff3b3b);
+  color: #2b0000;
+}
+
 .card {
   width: 640px;
   padding: 20px;
@@ -471,7 +613,7 @@ watch(
 /* Fullscreen results overlay */
 .results-fullscreen {
   position: fixed;
-  left: 380px;
+  left: 320px;
   top: 0;
   right: 0;
   bottom: 0;
@@ -601,7 +743,7 @@ pre {
     width: 220px;
   }
   .main-area {
-    margin-left: 220px;
+    margin-left: 200px;
   }
   .results-fullscreen {
     left: 220px;

@@ -61,9 +61,34 @@
                 <td
                   v-for="c in selectedTable.columns"
                   :key="c.name"
-                  :class="getCellClass(c)"
+                  :class="[
+                    getCellClass(c),
+                    { 'cell-saved': isCellRecentlySaved(Number(idx), c.name) },
+                  ]"
                 >
-                  <div class="cell-val">{{ formatCell(r[c.name]) }}</div>
+                  <div class="cell-val">
+                    <template
+                      v-if="
+                        editingCell &&
+                        editingCell.row === Number(idx) &&
+                        editingCell.col === c.name
+                      "
+                    >
+                      <input
+                        v-model="editingValue"
+                        @keydown.enter.prevent="commitEdit"
+                        @keydown.esc.prevent="cancelEdit"
+                        @blur="commitEdit"
+                        class="cell-input"
+                        autofocus
+                      />
+                    </template>
+                    <template v-else>
+                      <div @dblclick="() => startEdit(Number(idx), c.name)">
+                        {{ formatCell(r[c.name]) }}
+                      </div>
+                    </template>
+                  </div>
                 </td>
               </tr>
             </tbody>
@@ -113,7 +138,7 @@ const sqlText = ref('')
 
 // Listen for store-driven SQL editor requests (e.g., edit query from tab)
 const store = useDbStore()
-const { selectedSql } = storeToRefs(store)
+const { selectedSql, lastSavedCell } = storeToRefs(store)
 
 watch(selectedSql, (s) => {
   if (s && s.open && s.database && s.database === dbInfo.value?.database) {
@@ -124,6 +149,18 @@ watch(selectedSql, (s) => {
 
 const emit = defineEmits<{
   (e: 'execute-sql', payload: { sql: string; database?: string }): void
+  (
+    e: 'cell-updated',
+    payload: {
+      database?: string
+      table: string
+      rowIndex: number
+      column: string
+      row: any
+      oldValue: any
+      newValue: any
+    }
+  ): void
 }>()
 
 watch(
@@ -185,6 +222,48 @@ const selectedTable = computed(() => {
   )
 })
 
+// editing state for a single cell
+const editingCell = ref<{ row: number; col: string } | null>(null)
+const editingValue = ref<any>('')
+
+function startEdit(rowIdx: number, colName: string) {
+  editingCell.value = { row: rowIdx, col: colName }
+  const val = selectedTable.value?.rows?.[rowIdx]?.[colName]
+  editingValue.value = val === null || val === undefined ? '' : String(val)
+}
+
+function commitEdit() {
+  if (!editingCell.value) return
+  const { row: rowIdx, col: colName } = editingCell.value
+  const oldVal = selectedTable.value?.rows?.[rowIdx]?.[colName]
+  const newVal = editingValue.value
+  // update local model
+  if (
+    selectedTable.value &&
+    selectedTable.value.rows &&
+    selectedTable.value.rows[rowIdx]
+  ) {
+    selectedTable.value.rows[rowIdx][colName] = newVal
+  }
+  // emit update for parent to handle persistence
+  emit('cell-updated', {
+    database: dbInfo.value?.database,
+    table: selectedTable.value!.name,
+    rowIndex: rowIdx,
+    column: colName,
+    row: selectedTable.value?.rows?.[rowIdx],
+    oldValue: oldVal,
+    newValue: newVal,
+  })
+  editingCell.value = null
+  editingValue.value = ''
+}
+
+function cancelEdit() {
+  editingCell.value = null
+  editingValue.value = ''
+}
+
 function isNumericType(t: string | undefined) {
   if (!t) return false
   return /int|decimal|float|double|numeric|real/.test(t)
@@ -192,6 +271,19 @@ function isNumericType(t: string | undefined) {
 
 function getCellClass(col: any) {
   return isNumericType(col?.data_type) ? 'cell-numeric' : 'cell-text'
+}
+
+function isCellRecentlySaved(rowIdx: number, colName: string) {
+  const s = lastSavedCell.value
+  if (!s) return false
+  if (!dbInfo.value) return false
+  const tblName = selectedTable.value?.name
+  return (
+    s.database === dbInfo.value.database &&
+    s.table === tblName &&
+    s.rowIndex === rowIdx &&
+    s.column === colName
+  )
 }
 
 function formatCell(val: any) {
@@ -211,7 +303,7 @@ function formatCell(val: any) {
   overflow: hidden;
 }
 .tables-pane {
-  width: 340px;
+  width: 280px;
   background: #0b0b0c;
   padding: 8px;
   color: #bcdff6;
@@ -460,6 +552,30 @@ function formatCell(val: any) {
   white-space: nowrap;
   overflow: visible;
   text-overflow: clip;
+}
+.cell-input {
+  width: 100%;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #071014;
+  color: #cfe8ff;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, 'Roboto Mono', monospace;
+}
+.cell-saved {
+  animation: savedFlash 1.6s ease forwards;
+}
+@keyframes savedFlash {
+  0% {
+    background: rgba(34, 197, 94, 0.28);
+  }
+  40% {
+    background: rgba(34, 197, 94, 0.22);
+  }
+  100% {
+    background: transparent;
+  }
 }
 .rows-table thead th:not(:first-child),
 .rows-table tbody td:not(:first-child) {

@@ -10,8 +10,21 @@ export const useDbStore = defineStore('db', {
     resultsFullscreen: false,
     selectedSql: { open: false, sql: '', database: null } as any,
     open: false,
+    lastSavedCell: null as any | null,
   }),
   actions: {
+    markCellSaved(payload: any) {
+      this.lastSavedCell = { ...payload, ts: Date.now() }
+      // clear after a brief period
+      setTimeout(() => {
+        try {
+          this.lastSavedCell = null
+        } catch (e) {
+          /* ignore */
+        }
+      }, 2200)
+      this.persist()
+    },
     updateResultAt(idx: number, data: any) {
       if (idx < 0 || idx >= this.openResults.length) return
       // replace in place
