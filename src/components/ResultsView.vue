@@ -132,15 +132,15 @@
 import { ref, computed, watch, toRef } from 'vue'
 import { useDbStore } from '../stores/useDbStore'
 import { storeToRefs } from 'pinia'
+import { useSqlModal } from '../composables/useSqlModal'
+import { useCellEditing } from '../composables/useCellEditing'
 const props = defineProps<{ dbInfo: any }>()
 const dbInfo = toRef(props, 'dbInfo')
 
 const selected = ref<string | null>(null)
 const compact = ref(false)
 
-// SQL modal state
-const sqlModalOpen = ref(false)
-const sqlText = ref('')
+// (Modal and cell-editing state moved to composables)
 
 // Listen for store-driven SQL editor requests (e.g., edit query from tab)
 const store = useDbStore()
@@ -152,12 +152,7 @@ const isLoading = computed(() => {
   return !!store.loadingMap?.[db]
 })
 
-watch(selectedSql, (s) => {
-  if (s && s.open && s.database && s.database === dbInfo.value?.database) {
-    sqlText.value = s.sql || ''
-    sqlModalOpen.value = true
-  }
-})
+// (moved to composable)
 
 const emit = defineEmits<{
   (e: 'execute-sql', payload: { sql: string; database?: string }): void
@@ -189,44 +184,7 @@ function select(name: string) {
   selected.value = name
 }
 
-function openSqlModal() {
-  // If editor already has text, keep it (user may be editing).
-  const existing = dbInfo.value?._query?.sql
-  if (!sqlText.value || sqlText.value.trim() === '') {
-    if (selectedTable.value && selectedTable.value.name === 'Query Result') {
-      sqlText.value = existing || ''
-    } else {
-      // prefill a simple SELECT for the selected table
-      const tbl = selectedTable.value?.name || ''
-      sqlText.value = tbl ? `SELECT * FROM ${tbl} LIMIT 100` : ''
-    }
-  }
-  sqlModalOpen.value = true
-}
-
-function closeSqlModal() {
-  sqlModalOpen.value = false
-}
-
-function runSql() {
-  const sql = (sqlText.value || '').trim()
-  if (!sql) return
-  emit('execute-sql', { sql, database: dbInfo.value?.database })
-  closeSqlModal()
-}
-
-// keyboard shortcut: Ctrl/Cmd + Enter to run
-function onKeydown(e: KeyboardEvent) {
-  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-    runSql()
-  }
-}
-
-// attach keydown globally while modal is open
-watch(sqlModalOpen, (v) => {
-  if (v) window.addEventListener('keydown', onKeydown)
-  else window.removeEventListener('keydown', onKeydown)
-})
+// modal logic moved to composable
 
 const selectedTable = computed(() => {
   return (
@@ -234,83 +192,29 @@ const selectedTable = computed(() => {
   )
 })
 
-// editing state for a single cell
-const editingCell = ref<{ row: number; col: string } | null>(null)
-const editingValue = ref<any>('')
+const { sqlModalOpen, sqlText, openSqlModal, closeSqlModal, runSql } =
+  useSqlModal(dbInfo, selectedTable, selectedSql, emit)
 
-function startEdit(rowIdx: number, colName: string) {
-  editingCell.value = { row: rowIdx, col: colName }
-  const val = selectedTable.value?.rows?.[rowIdx]?.[colName]
-  editingValue.value = val === null || val === undefined ? '' : String(val)
-}
-
-function commitEdit() {
-  if (!editingCell.value) return
-  const { row: rowIdx, col: colName } = editingCell.value
-  const oldVal = selectedTable.value?.rows?.[rowIdx]?.[colName]
-  const newVal = editingValue.value
-  // update local model
-  if (
-    selectedTable.value &&
-    selectedTable.value.rows &&
-    selectedTable.value.rows[rowIdx]
-  ) {
-    selectedTable.value.rows[rowIdx][colName] = newVal
-  }
-  // emit update for parent to handle persistence
-  emit('cell-updated', {
-    database: dbInfo.value?.database,
-    table: selectedTable.value!.name,
-    rowIndex: rowIdx,
-    column: colName,
-    row: selectedTable.value?.rows?.[rowIdx],
-    oldValue: oldVal,
-    newValue: newVal,
-  })
-  editingCell.value = null
-  editingValue.value = ''
-}
-
-function cancelEdit() {
-  editingCell.value = null
-  editingValue.value = ''
-}
-
-function isNumericType(t: string | undefined) {
-  if (!t) return false
-  return /int|decimal|float|double|numeric|real/.test(t)
-}
-
-function getCellClass(col: any) {
-  return isNumericType(col?.data_type) ? 'cell-numeric' : 'cell-text'
-}
-
-function isCellRecentlySaved(rowIdx: number, colName: string) {
-  const s = lastSavedCell.value
-  if (!s) return false
-  if (!dbInfo.value) return false
-  const tblName = selectedTable.value?.name
-  return (
-    s.database === dbInfo.value.database &&
-    s.table === tblName &&
-    s.rowIndex === rowIdx &&
-    s.column === colName
-  )
-}
-
-function formatCell(val: any) {
-  if (val === null || val === undefined || val === '') return '-'
-  return String(val)
-}
+const {
+  editingCell,
+  editingValue,
+  startEdit,
+  commitEdit,
+  cancelEdit,
+  getCellClass,
+  isCellRecentlySaved,
+  formatCell,
+} = useCellEditing(selectedTable, emit, lastSavedCell, dbInfo)
 </script>
 
-<style scoped>
+<style scoped lang="scss">
 /* Compact, TablePlus-like presentation */
 .results-shell {
   display: flex;
   flex: 1;
   min-height: 0;
   height: 100%;
+  position: relative;
   border-radius: 6px;
   overflow: hidden;
 }
@@ -361,16 +265,6 @@ function formatCell(val: any) {
 .detail-header h3 {
   margin: 0;
   font-size: 14px;
-}
-.detail-toolbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-}
-.detail-toolbar .count {
-  color: #9fb0c7;
-  font-size: 12px;
 }
 .compact-toggle {
   color: #9fb0c7;
@@ -577,46 +471,43 @@ function formatCell(val: any) {
 }
 .cell-saved {
   animation: savedFlash 1.6s ease forwards;
+}
 
-  /* loader overlay */
-  .results-shell {
-    position: relative;
+/* loader overlay (moved out from inside .cell-saved so it applies correctly) */
+.loader-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(rgba(2, 6, 9, 0.25), rgba(2, 6, 9, 0.35));
+  z-index: 200;
+}
+.loader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(10, 12, 14, 0.9);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+}
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-top-color: #ff8f2f;
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
-  .loader-overlay {
-    position: absolute;
-    inset: 0;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: linear-gradient(rgba(2, 6, 9, 0.25), rgba(2, 6, 9, 0.35));
-    z-index: 200;
-  }
-  .loader {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    background: rgba(10, 12, 14, 0.9);
-    border-radius: 10px;
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
-  }
-  .spinner {
-    width: 18px;
-    height: 18px;
-    border-radius: 50%;
-    border: 2px solid rgba(255, 255, 255, 0.12);
-    border-top-color: #ff8f2f;
-    animation: spin 900ms linear infinite;
-  }
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-  .loader-text {
-    color: #dfefff;
-    font-size: 13px;
-  }
+}
+.loader-text {
+  color: #dfefff;
+  font-size: 13px;
 }
 @keyframes savedFlash {
   0% {
