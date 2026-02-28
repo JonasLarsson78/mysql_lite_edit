@@ -40,7 +40,7 @@
             Connect to DB
           </button>
         </div>
-        <div v-if="currentResult" class="result">
+        <div v-if="currentResult && !resultsFullscreen" class="result">
           <div class="result-header">
             <h3>Database: {{ currentResult.database }}</h3>
             <button class="btn-debug" @click="showRaw = !showRaw">
@@ -241,7 +241,12 @@ function onConnected(payload: any) {
 
 async function handleExecuteSql(payload: any) {
   const sql = payload?.sql
-  const database = payload?.database
+  // prefer explicit payload database; when in fullscreen prefer the active tab's database
+  const database =
+    payload?.database ||
+    (store.resultsFullscreen
+      ? store.openResults[store.activeResult]?.database
+      : store.dbInfo?.database)
   if (!sql) return
 
   // try find connection creds from openResults or current dbInfo
