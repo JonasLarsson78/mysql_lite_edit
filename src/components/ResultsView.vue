@@ -1,5 +1,11 @@
 <template>
   <div class="results-shell">
+    <div v-if="isLoading" class="loader-overlay">
+      <div class="loader">
+        <div class="spinner"></div>
+        <div class="loader-text">Loading…</div>
+      </div>
+    </div>
     <aside class="tables-pane">
       <div class="pane-header">Tables</div>
       <ul class="tables-list">
@@ -139,6 +145,12 @@ const sqlText = ref('')
 // Listen for store-driven SQL editor requests (e.g., edit query from tab)
 const store = useDbStore()
 const { selectedSql, lastSavedCell } = storeToRefs(store)
+
+const isLoading = computed(() => {
+  const db = dbInfo.value?.database
+  if (!db) return false
+  return !!store.loadingMap?.[db]
+})
 
 watch(selectedSql, (s) => {
   if (s && s.open && s.database && s.database === dbInfo.value?.database) {
@@ -565,6 +577,37 @@ function formatCell(val: any) {
 }
 .cell-saved {
   animation: savedFlash 1.6s ease forwards;
+
+/* loader overlay */
+.results-shell { position: relative; }
+.loader-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(rgba(2,6,9,0.25), rgba(2,6,9,0.35));
+  z-index: 200;
+}
+.loader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(10,12,14,0.9);
+  border-radius: 10px;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
+}
+.spinner {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.12);
+  border-top-color: #ff8f2f;
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.loader-text { color: #dfefff; font-size: 13px; }
 }
 @keyframes savedFlash {
   0% {

@@ -11,6 +11,7 @@
         >
           <div class="connection-meta">
             <div class="connection-title">
+              <span v-if="store.loadingMap && store.loadingMap[db.database]" class="conn-spinner" aria-hidden="true"></span>
               {{ db.name }} <span class="muted">{{ db.note }}</span>
             </div>
             <div class="connection-host">{{ db.host }}</div>
@@ -159,6 +160,7 @@ async function openSaved(db: any) {
 
   // Try to connect immediately and open a new tab. If it fails, open the modal with defaults.
   try {
+    store.setLoading(db.database, true)
     const res = await fetch('/api/connect', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -192,6 +194,8 @@ async function openSaved(db: any) {
     console.warn('Saved connect failed:', data)
   } catch (e) {
     console.warn('Saved connect error', e)
+  } finally {
+    try { store.setLoading(db.database, false) } catch (e) { /* ignore */ }
   }
 
   store.openModalWithDefaults({
@@ -251,6 +255,7 @@ async function handleExecuteSql(payload: any) {
   }
 
   try {
+    store.setLoading(conn.database, true)
     const res = await fetch('/api/query', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -315,6 +320,8 @@ async function handleExecuteSql(payload: any) {
     if (store.selectedSql && store.selectedSql.open) store.closeSqlEditor()
   } catch (e) {
     alert('Query error: ' + String(e))
+  } finally {
+    try { if (conn && conn.database) store.setLoading(conn.database, false) } catch (e) { /* ignore */ }
   }
 }
 
@@ -511,6 +518,18 @@ watch(
   background: rgba(255, 255, 255, 0.03);
   color: #fff;
 }
+.conn-spinner {
+  width: 12px;
+  height: 12px;
+  display: inline-block;
+  margin-right: 8px;
+  vertical-align: middle;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.12);
+  border-top-color: #ff8f2f;
+  animation: spin 900ms linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
 .main-area {
   flex: 1;
   display: flex;

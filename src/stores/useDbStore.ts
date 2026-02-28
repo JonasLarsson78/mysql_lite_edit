@@ -11,6 +11,7 @@ export const useDbStore = defineStore('db', {
     selectedSql: { open: false, sql: '', database: null } as any,
     open: false,
     lastSavedCell: null as any | null,
+    loadingMap: {} as Record<string, boolean>,
   }),
   actions: {
     markCellSaved(payload: any) {
@@ -24,6 +25,14 @@ export const useDbStore = defineStore('db', {
         }
       }, 2200)
       this.persist()
+    },
+    setLoading(database: string | null, v: boolean) {
+      if (!database) return
+      try {
+        this.loadingMap = { ...(this.loadingMap || {}), [database]: !!v }
+      } catch (e) {
+        /* ignore */
+      }
     },
     updateResultAt(idx: number, data: any) {
       if (idx < 0 || idx >= this.openResults.length) return
@@ -56,6 +65,8 @@ export const useDbStore = defineStore('db', {
         this.selectedDefaults = null
         this.open = false
         this.activeResult = 0
+        // ensure persisted state is cleared when last tab is closed
+        this.persist()
         return
       }
       if (idx < this.activeResult) {
