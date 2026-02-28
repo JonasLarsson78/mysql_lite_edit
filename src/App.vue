@@ -11,7 +11,11 @@
         >
           <div class="connection-meta">
             <div class="connection-title">
-              <span v-if="store.loadingMap && store.loadingMap[db.database]" class="conn-spinner" aria-hidden="true"></span>
+              <span
+                v-if="store.loadingMap && store.loadingMap[db.database]"
+                class="conn-spinner"
+                aria-hidden="true"
+              ></span>
               {{ db.name }} <span class="muted">{{ db.note }}</span>
             </div>
             <div class="connection-host">{{ db.host }}</div>
@@ -195,7 +199,11 @@ async function openSaved(db: any) {
   } catch (e) {
     console.warn('Saved connect error', e)
   } finally {
-    try { store.setLoading(db.database, false) } catch (e) { /* ignore */ }
+    try {
+      store.setLoading(db.database, false)
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   store.openModalWithDefaults({
@@ -321,7 +329,11 @@ async function handleExecuteSql(payload: any) {
   } catch (e) {
     alert('Query error: ' + String(e))
   } finally {
-    try { if (conn && conn.database) store.setLoading(conn.database, false) } catch (e) { /* ignore */ }
+    try {
+      if (conn && conn.database) store.setLoading(conn.database, false)
+    } catch (e) {
+      /* ignore */
+    }
   }
 }
 
@@ -525,11 +537,15 @@ watch(
   margin-right: 8px;
   vertical-align: middle;
   border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.12);
+  border: 2px solid rgba(255, 255, 255, 0.12);
   border-top-color: #ff8f2f;
   animation: spin 900ms linear infinite;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
 .main-area {
   flex: 1;
   display: flex;

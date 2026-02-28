@@ -578,36 +578,45 @@ function formatCell(val: any) {
 .cell-saved {
   animation: savedFlash 1.6s ease forwards;
 
-/* loader overlay */
-.results-shell { position: relative; }
-.loader-overlay {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(rgba(2,6,9,0.25), rgba(2,6,9,0.35));
-  z-index: 200;
-}
-.loader {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 14px;
-  background: rgba(10,12,14,0.9);
-  border-radius: 10px;
-  box-shadow: 0 8px 30px rgba(0,0,0,0.6);
-}
-.spinner {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.12);
-  border-top-color: #ff8f2f;
-  animation: spin 900ms linear infinite;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-.loader-text { color: #dfefff; font-size: 13px; }
+  /* loader overlay */
+  .results-shell {
+    position: relative;
+  }
+  .loader-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(rgba(2, 6, 9, 0.25), rgba(2, 6, 9, 0.35));
+    z-index: 200;
+  }
+  .loader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(10, 12, 14, 0.9);
+    border-radius: 10px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6);
+  }
+  .spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.12);
+    border-top-color: #ff8f2f;
+    animation: spin 900ms linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  .loader-text {
+    color: #dfefff;
+    font-size: 13px;
+  }
 }
 @keyframes savedFlash {
   0% {
